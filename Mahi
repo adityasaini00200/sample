@@ -1,0 +1,235 @@
+alight-3d-her-cards/
+├── index.html
+├── style.css
+├── script.js
+├── images/
+│   ├── card1.jpg     (1000118746)
+│   ├── card2.jpg     (1000118773)
+│   ├── card3.jpg     (1000118771)
+│   └── her-bg.jpg    (optional text background)
+├── fonts/            (Google Fonts loaded via CSS)
+└── README.md
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alight Motion "Her" 3D Cards</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;900&family=Roboto:ital,wght@0,400;1,400&family=Libre+Baskerville:wght@700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+    <div id="ui">
+        <button id="playPause">⏸️ Pause</button>
+        <span id="time">0:00 / 0:05</span>
+    </div>
+    <canvas id="canvas"></canvas>
+    <script src="script.js"></script>
+</body>
+</html>
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;900&family=Roboto:ital,wght@0,400;1,400&family=Libre+Baskerville:wght@700&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { 
+    font-family: 'Montserrat', sans-serif;
+    overflow: hidden; 
+    background: linear-gradient(135deg, #f8f9ff, #fff);
+}
+
+#canvas { display: block; width: 100vw; height: 100vh; }
+#ui {
+    position: fixed; top: 20px; left: 20px; z-index: 100;
+    background: rgba(255,255,255,0.9); padding: 15px; border-radius: 12px;
+    backdrop-filter: blur(10px); box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+}
+button { 
+    background: #ff7eb7; color: white; border: none; padding: 10px 20px; 
+    border-radius: 25px; cursor: pointer; font-weight: 600; font-size: 14px;
+}
+button:hover { background: #ff5ea0; }
+#time { margin-left: 15px; font-family: 'Libre Baskerville', serif; }
+class AlightMotionPlayer {
+    constructor() {
+        this.scene = new THREE.Scene();
+        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+        this.renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
+        this.renderer.setSize(1440, 1080);
+        this.renderer.setClearColor(0xffffff);
+        
+        this.time = 0;
+        this.duration = 5; // 5000ms
+        this.isPlaying = true;
+        this.fps = 60;
+        
+        this.camera.position.set(0, 0, 800);
+        this.initLighting();
+        this.createCards();
+        this.createTextLayers();
+        this.animate();
+        this.setupControls();
+    }
+    
+    initLighting() {
+        const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+        const directional = new THREE.DirectionalLight(0xffffff, 0.8);
+        directional.position.set(75, -75, 100);
+        this.scene.add(ambient, directional);
+    }
+    
+    createCards() {
+        const loader = new THREE.TextureLoader();
+        this.cards = [
+            // Card 1: ID 10342908 (flip3 effect)
+            { pos: [343.7, 29.4, -279], scale: 0.474, rotY: 6.585, flipStart: 73.6, flipEnd: 34, img: 'images/card1.jpg' },
+            // Card 2: ID 10342909 (rotation keyframes)
+            { pos: [4.2, -120.3, -195.5], scale: 0.433, rotStart: 14.27, rotEnd: -4.62, img: 'images/card2.jpg' },
+            // Card 3: ID 10342910 (flip3 effect)
+            { pos: [-319.5, -142.6, -426.5], scale: 0.5, flipStart: -70, flipEnd: -41.9, img: 'images/card3.jpg' },
+            // Card 4: ID 10342912 (longshadow)
+            { pos: [389.5, 74.8, -298], scale: 0.474, rotY: 5.49, img: 'images/card1.jpg' } // Reuse or add card4.jpg
+        ];
+        
+        this.cardGroups = [];
+        this.cards.forEach((card, i) => {
+            const group = new THREE.Group();
+            
+            // Background (shape id="114" #f6f6f6)
+            const bgGeo = new THREE.PlaneGeometry(309 * card.scale, 352 * card.scale);
+            const bgMat = new THREE.MeshLambertMaterial({ color: 0xf6f6f6 });
+            const bg = new THREE.Mesh(bgGeo, bgMat);
+            bg.position.y = 23.75;
+            
+            // Long shadow effect
+            const shadowGeo = new THREE.PlaneGeometry(309 * card.scale * 1.3, 352 * card.scale * 1.3);
+            const shadowMat = new THREE.MeshBasicMaterial({ 
+                color: 0x000000, transparent: true, opacity: 0.18 
+            });
+            const shadow = new THREE.Mesh(shadowGeo, shadowMat);
+            shadow.position.set(46 * Math.cos(Math.PI/4), 46 * Math.sin(Math.PI/4), -1);
+            shadow.rotation.z = Math.PI / 4;
+            
+            // Main image (shape id="115")
+            const imgGeo = new THREE.PlaneGeometry(540 * card.scale * 0.546, 540 * card.scale * 0.546);
+            const imgMat = new THREE.MeshLambertMaterial({ 
+                map: loader.load(card.img) 
+            });
+            const img = new THREE.Mesh(imgGeo, imgMat);
+            
+            group.add(bg, shadow, img);
+            group.position.set(card.pos[0], card.pos[1], card.pos[2]);
+            group.scale.set(card.scale, card.scale, card.scale);
+            group.rotation.y = THREE.MathUtils.degToRad(card.rotY || 0);
+            
+            this.scene.add(group);
+            this.cardGroups.push({ group, img,  card });
+        });
+    }
+    
+    createTextLayers() {
+        this.textGroups = [];
+        const textLayers = [
+            { pos: [-177, -183.2, -511], rotY: -5.77 }, // 10342911
+            { pos: [389.5, 74.8, -298], rotY: 5.49 }    // 10342912
+        ];
+        
+        textLayers.forEach((layer, layerIdx) => {
+            const group = new THREE.Group();
+            group.position.set(...layer.pos);
+            group.scale.set(0.474, 0.474, 0.474);
+            group.rotation.y = THREE.MathUtils.degToRad(layer.rotY);
+            
+            // Her text cycle: 4 fonts x 3 repeats
+            const fonts = [
+                { family: 'Montserrat', weight: '900', start: 0 },
+                { family: 'Montserrat', weight: '400', start: 133/30 },
+                { family: 'Roboto', style: 'italic', weight: '400', start: 234/30 },
+                { family: "'Libre Baskerville'", weight: '700', start: 334/30 }
+            ];
+            
+            fonts.forEach((font, fontIdx) => {
+                const textGeo = new THREE.PlaneGeometry(200, 80);
+                const canvas = document.createElement('canvas');
+                canvas.width = 512; canvas.height = 256;
+                const ctx = canvas.getContext('2d');
+                
+                ctx.fillStyle = '#ff7eb7';
+                ctx.font = `bold 72px ${font.family}`;
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText('Her', 256, 128);
+                
+                const texture = new THREE.CanvasTexture(canvas);
+                const mat = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+                const textMesh = new THREE.Mesh(textGeo, mat);
+                
+                group.add(textMesh);
+                this.textGroups.push({ 
+                    mesh: textMesh, 
+                    startTime: font.start + (layerIdx * 1.664) + (fontIdx * 0.466),
+                    duration: 0.133
+                });
+            });
+            
+            this.scene.add(group);
+        });
+    }
+    
+    animate() {
+        const loop = () => {
+            if (this.isPlaying) {
+                this.time += 1/this.fps;
+                if (this.time > this.duration) this.time = 0;
+                
+                this.updateAnimations();
+                this.updateUI();
+            }
+            this.renderer.render(this.scene, this.camera);
+            requestAnimationFrame(loop);
+        };
+        loop();
+    }
+    
+    updateAnimations() {
+        const progress = this.time / this.duration;
+        
+        // Card flip3 effects (matches XML keyframes)
+        this.cardGroups[0].img.rotation.x = THREE.MathUtils.degToRad(
+            this.lerp(73.6, 34, Math.min(progress * 3.4, 1))
+        );
+        this.cardGroups[2].img.rotation.x = THREE.MathUtils.degToRad(
+            this.lerp(-70, -41.9, Math.min(progress * 3, 1))
+        );
+        
+        // Card 2 rotation keyframes
+        this.cardGroups[1].group.rotation.y = THREE.MathUtils.degToRad(
+            this.lerp(14.27, -4.62, progress)
+        );
+        
+        // Text visibility (matches timeline: 117, 118, 119)
+        this.textGroups.forEach(text => {
+            const normalizedTime = (this.time + text.startTime) % this.duration;
+            text.mesh.visible = normalizedTime >= text.startTime && 
+                               normalizedTime <= text.startTime + text.duration;
+        });
+    }
+    
+    lerp(a, b, t) { return a + (b - a) * t; }
+    
+    setupControls() {
+        document.getElementById('playPause').onclick = () => {
+            this.isPlaying = !this.isPlaying;
+        };
+    }
+    
+    updateUI() {
+        const mins = Math.floor(this.time / 60);
+        const secs = Math.floor(this.time % 60);
+        document.getElementById('time').textContent = 
+            `${secs.toString().padStart(2,'0')} / 05`;
+    }
+}
+
+new AlightMotionPlayer();
+window.addEventListener('resize', () => {
+    // Handle responsive resize
+});
